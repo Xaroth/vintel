@@ -41,10 +41,12 @@ from vi.soundmanager import SoundManager
 from vi.threads import AvatarFindThread, KOSCheckerThread, MapStatisticsThread
 from vi.ui.systemtray import TrayContextMenu
 
+from vi.eve.api import api
+
 # Timer intervals
 MESSAGE_EXPIRY_SECS = 20 * 60
 MAP_UPDATE_INTERVAL_MSECS = 4 * 1000
-CLIPBOARD_CHECK_INTERVAL_MSECS = 4 * 1000
+CLIPBOARD_CHECK_INTERVAL_MSECS = 1 * 1000
 
 
 class MainWindow(QtGui.QMainWindow):
@@ -594,7 +596,7 @@ class MainWindow(QtGui.QMainWindow):
 
     def pruneMessages(self):
         try:
-            now = time.mktime(evegate.currentEveTime().timetuple())
+            now = api.eveTimeEpoch()
             for row in range(self.chatListWidget.count()):
                 chatListWidgetItem = self.chatListWidget.item(0)
                 chatEntryWidget = self.chatListWidget.itemWidget(chatListWidgetItem)
@@ -624,7 +626,7 @@ class MainWindow(QtGui.QMainWindow):
                         text = "None KOS"
                     self.trayIcon.showMessage("Your KOS-Check", text, 1)
                 text = text.replace("\n\n", "<br>")
-                message = chatparser.chatparser.Message("Vintel KOS-Check", text, evegate.currentEveTime(), "VINTEL",
+                message = chatparser.chatparser.Message("Vintel KOS-Check", text, api.eveTime(), "VINTEL",
                                                         [], states.NOT_CHANGE, text.upper(), text)
                 self.addMessageToIntelChat(message)
             elif state == "error":

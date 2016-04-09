@@ -22,6 +22,7 @@ import logging
 import requests
 
 from vi import evegate
+from vi.eve.api import api
 
 UNKNOWN = "No Result"
 NOT_KOS = 'Not Kos'
@@ -62,7 +63,7 @@ def check(parts):
     # Corporation check
     corpCheckData = {}
     try:
-        namesAsIds = evegate.namesToIds(checkBylastChars)
+        namesAsIds = api.namesToIds(checkBylastChars)
     except Exception:
         pass
 
@@ -73,15 +74,13 @@ def check(parts):
 
     # Anything left - do the corp check and fill in kos status
     if namesAsIds:
+        corpIDs = set()
         for name, id in namesAsIds.items():
-            corpCheckData[name] = {"id": id, "need_check": False, "corpids": evegate.getCorpidsForCharId(id)}
+            corpids = [x['corporationID'] for x in api.characterInformation()['employmentHistory']]
+            corpCheckData[name] = {"id": id, "need_check": False, "corpids": corpids}
+            corpIDs.update(corpids)
 
-        corpIds = set()
-        for name in namesAsIds.keys():
-            for number in corpCheckData[name]["corpids"]:
-                corpIds.add(number)
-
-        corpIdName = evegate.idsToNames(corpIds)
+        corpIdName = api.idsToName(list(corpIds))
         for name, nameData in corpCheckData.items():
             nameData["corpnames"] = [corpIdName[id] for id in nameData["corpids"]]
             for corpname in nameData["corpnames"]:

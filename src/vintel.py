@@ -29,9 +29,8 @@ from logging import StreamHandler
 from PyQt4 import QtGui
 from vi import version
 from vi.ui import viui, systemtray
-from vi.cache import cache
+from vi.cache import cache, Cache
 from vi.resources import resourcePath
-from vi.cache.cache import Cache
 
 
 def exceptHook(exceptionType, exceptionValue, tracebackObject):
@@ -79,6 +78,7 @@ if __name__ == "__main__":
     if not os.path.exists(vintelDirectory):
         os.mkdir(vintelDirectory)
     cache.Cache.PATH_TO_CACHE = os.path.join(vintelDirectory, "cache-2.sqlite3")
+    Cache.initialize(os.path.join(vintelDirectory, "cache-3.sqlite3"))
 
     vintelLogDirectory = os.path.join(vintelDirectory, "logs")
     if not os.path.exists(vintelLogDirectory):
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     splash = QtGui.QSplashScreen(QtGui.QPixmap(resourcePath("vi/ui/res/logo.png")))
 
-    vintelCache = Cache()
+    vintelCache = cache.Cache()
     logLevel = vintelCache.getFromCache("logging_level")
     if not logLevel:
         logLevel = logging.WARN
@@ -116,9 +116,9 @@ if __name__ == "__main__":
     logging.critical("")
     logging.critical("------------------- Vintel %s starting up -------------------", version.VERSION)
     logging.critical("")
-    logging.debug("Looking for chat logs at: %s", chatLogDirectory)
-    logging.debug("Cache maintained here: %s", cache.Cache.PATH_TO_CACHE)
-    logging.debug("Writing logs to: %s", vintelLogDirectory)
+    logging.info("Looking for chat logs at: %s", chatLogDirectory)
+    logging.info("Cache maintained here: %s", cache.Cache.PATH_TO_CACHE)
+    logging.info("Writing logs to: %s", vintelLogDirectory)
 
     trayIcon = systemtray.TrayIcon(app)
     trayIcon.setContextMenu(systemtray.TrayContextMenu(trayIcon))
