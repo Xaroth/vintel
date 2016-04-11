@@ -26,6 +26,7 @@ from PyQt4.QtCore import QThread
 from PyQt4.QtCore import SIGNAL
 from vi import evegate
 from vi import koschecker
+from vi.eve.api import EveApi
 from vi.cache.cache import Cache
 from vi.resources import resourcePath
 
@@ -37,21 +38,15 @@ class AvatarFindThread(QThread):
         QThread.__init__(self)
         self.queue = queue.Queue()
 
-
     def addChatEntry(self, chatEntry, clearCache=False):
         try:
-            if clearCache:
-                cache = Cache()
-                cache.removeAvatar(chatEntry.message.user)
-
             # Enqeue the data to be picked up in run()
             self.queue.put(chatEntry)
         except Exception as e:
             logging.error("Error in AvatarFindThread: %s", e)
 
-
     def run(self):
-        cache = Cache()
+        api = EveApi()
         lastCall = 0
         wait = 300  # time between 2 requests in ms
         while True:
@@ -60,22 +55,11 @@ class AvatarFindThread(QThread):
                 chatEntry = self.queue.get()
                 charname = chatEntry.message.user
                 logging.debug("AvatarFindThread getting avatar for %s" % charname)
-                avatar = None
                 if charname == "VINTEL":
                     with open(resourcePath("vi/ui/res/logo_small.png"), "rb") as f:
                         avatar = f.read()
-                if not avatar:
-                    avatar = cache.getAvatar(charname)
-                    if avatar:
-                        logging.debug("AvatarFindThread found cached avatar for %s" % charname)
-                if not avatar:
-                    diffLastCall = time.time() - lastCall
-                    if diffLastCall < wait:
-                        time.sleep((wait - diffLastCall) / 1000.0)
-                    avatar = evegate.getAvatarForPlayer(charname)
-                    lastCall = time.time()
-                    if avatar:
-                        cache.putAvatar(charname, avatar)
+                else:
+                    avatar = api.avatarFromName(charname)
                 if avatar:
                     logging.debug("AvatarFindThread emit avatar_update for %s" % charname)
                     self.emit(SIGNAL("avatar_update"), chatEntry, avatar)
