@@ -31,13 +31,14 @@ HEADERS = {
     "Accept": "application/vnd.ccp.eve.Api-v3+json",
 }
 
-cache = Cache(key_prefix='api', default_expires=60*60*6)
-
 def parse_datetime(text):
     return datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
 
 
 class EveApi(object):
+    def __init__(self):
+        self.cache = Cache(key_prefix='api', default_expires=60*60*6)
+
     def urljoin(cls, base, path):
         """
         Joins two url parts together
@@ -56,7 +57,7 @@ class EveApi(object):
             params = {}
         if cacheResponse:
             key, section, expires = cacheResponse
-            cached = cache.get(key, section=section)
+            cached = self.cache.get(key, section=section)
             if cached:
                 return ET.fromstring(cached)
         url = self.urljoin("api", path)
@@ -71,13 +72,13 @@ class EveApi(object):
         if cacheResponse:
             if expires == 'smart':
                 expires = self.extractApiCacheTime(tree)
-            cache.set(key, content, section=section, expires=expires or DEFAULT_EXPIRES)
+            self.cache.set(key, content, section=section, expires=expires or DEFAULT_EXPIRES)
         return tree
 
     def crestRequest(self, path, cacheResponse = False, crest = 'public', **kwargs):
         if cacheResponse:
             key, section, expires = cacheResponse
-            cached = cache.get(key, section=section)
+            cached = self.cache.get(key, section=section)
             if cached:
                 return cached
         url = self.urljoin('{}-crest'.format(crest), path)
@@ -89,7 +90,7 @@ class EveApi(object):
         response = requests.get(url, headers=headers, **kwargs)
         data = response.json()
         if cacheResponse:
-            cache.set(key, conten, section=section, expires=expires or DEFAULT_EXPIRES)
+            self.cache.set(key, conten, section=section, expires=expires or DEFAULT_EXPIRES)
         return data
 
     def eveTime(self):
@@ -120,7 +121,7 @@ class EveApi(object):
             return {}
         logging.debug("Requesting an ID lookup for %d name%s", len(names), '' if len(names) == 1 else '')
         nameslower = {name.lower(): name for name in names}
-        cached = cache.get_many(names, section='namesToId')
+        cached = self.cache.get_many(names, section='namesToId')
         names = [x for x in names if x not in cached]
         if not names:  # Everything was cached
             return cached
@@ -141,7 +142,7 @@ class EveApi(object):
         except Exception as ex:
             logging.error("Error during namesToIds call: %s", ex)
         logging.debug("%d ID%s returned", len(ret_normal), '' if len(ret_normal) == 1 else '')
-        cache.set_many(ret_lower, section='namesToId')
+        self.cache.set_many(ret_lower, section='namesToId')
         if useResultingCase:
             ret_lower.update(cached)
             return ret_lower
@@ -184,7 +185,7 @@ class EveApi(object):
         if len(characterIDs) == 0:
             return {}
         characterIDs = list(map(str, characterIDs))
-        cached = cache.get_many(characterIDs, section='idsToName')
+        cached = self.cache.get_many(characterIDs, section='idsToName')
         characterIDs = [x for x in characterIDs if x not in cached]
         if not characterIDs:
             return cached
@@ -201,7 +202,7 @@ class EveApi(object):
                 ret[characterID] = data['name']
         except:
             pass
-        cache.set_many(ret, section='idsToName')
+        self.cache.set_many(ret, section='idsToName')
         logging.debug("%d Name%s returned", len(ret), '' if len(ret) == 1 else '')
         ret.update(cached)
         return ret
@@ -233,13 +234,13 @@ class EveApi(object):
             'size': size
         }
         cache_key = '{characterID}:{size}'.format(**params)
-        cached = cache.get(cache_key, section='avatarFromID')
+        cached = self.cache.get(cache_key, section='avatarFromID')
         if cached:
             return cached
-        url = self.urljoin("image", "Character/{characterID}_{size}.jpg".format(params))
+        url = self.urljoin("image", "Character/{characterID}_{size}.jpg".format(**params))
         try:
             content = requests.get(url).content
-            cache.set(cache_key, content, section='avatarFromID')
+            self.cache.set(cache_key, content, section='avatarFromID')
             return content
         except Exception as e:
             logging.error("Exception during avatarFromID: %s", e)
@@ -299,7 +300,7 @@ class EveApi(object):
 
         Returns: A dictionary with the solarsystem id as key, and the amount of jumps as value.
         """
-        cached = cache.get('systemJumps')
+        cached = self.cache.get('systemJumps')
         if cached:
             return cached
         ret = {}
@@ -316,7 +317,7 @@ class EveApi(object):
         except:
             pass
         expires = self.extractApiCacheTime(response)
-        cache.set('systemJumps', ret, expires=expires)
+        self.cache.set('systemJumps', ret, expires=expires)
         return ret
 
     def systemKills(self):  # TODO: Caching
@@ -326,7 +327,7 @@ class EveApi(object):
         Returns: A dictionary with the solarsystem id as key, and as value a dictionary
                     containing the kills per type.
         """
-        cached = cache.get('systemKills')
+        cached = self.cache.get('systemKills')
         if cached:
             return cached
         ret = {}
@@ -346,7 +347,7 @@ class EveApi(object):
         except:
             pass
         expires = self.extractApiCacheTime(response)
-        cache.set('systemKills', ret, expires=expires)
+        self.cache.set('systemKills', ret, expires=expires)
         return ret
 
     def systemInformation(self):
@@ -355,30 +356,30 @@ class EveApi(object):
         return {key: dict(value, jumps=jumps.get(key)) for key, value in kills.items()}
 
     def npcCorporations(self):  # TODO: Migrate to public crest once it is released
-        cached = cache.get('npcCorporations')
+        cached = self.cache.get('npcCorporations')
         if cached:
             return cached
         response = self.crestRequest('corporations/npccorps/', crest='test')
         data = {item['id']: item['name'] for item in response['items']}
-        cache.set('npcCorporations', data, expires=60*60*24)
+        self.cache.set('npcCorporations', data, expires=60*60*24)
         return data
 
     def solarsystems(self):
-        cached = cache.get('solarsystems')
+        cached = self.cache.get('solarsystems')
         if cached:
             return cached
         response = self.crestRequest('solarsystems/', crest='public')
         data = {item['id']: item['name'] for item in response['items']}
-        cache.set('solarsystems', data, expires=60*60*24)
+        self.cache.set('solarsystems', data, expires=60*60*24)
         return data
 
     def regions(self):
-        cached = cache.get('regions')
+        cached = self.cache.get('regions')
         if cached:
             return cached
         response = self.crestRequest('regions/', crest='public')
         data = {item['id']: item['name'] for item in response['items']}
-        cache.set('regions', data, expires=60*60*24)
+        self.cache.set('regions', data, expires=60*60*24)
         return data
 
 api = EveApi()
