@@ -212,7 +212,7 @@ class NewCache(CacheBase):
         key = self._get_key(key, section)
         now = self.utcnow()
         expired = [now] if allowExpired else []
-        query = query.format(expired="AND expired <= ?" if allowExpired else "")
+        query = query.format(expired="AND expires <= ?" if allowExpired else "")
         fields = self.conn.execute(query, [key]+expired).fetchone()
         if fields:
             return self.to_python(fields[0:3])
@@ -223,7 +223,7 @@ class NewCache(CacheBase):
         now = self.utcnow()
         query = "SELECT key, blobdata, intdata, stringdata, expires FROM cache WHERE key IN ({seq}) {expired}"
         expired = [now] if allowExpired else []
-        query = query.format(seq=', '.join(['?']*len(keys)), expired=" AND expired < ?" if allowExpired else "")
+        query = query.format(seq=', '.join(['?']*len(keys)), expired=" AND expires < ?" if allowExpired else "")
         data = {}
         for row in self.conn.execute(query, [self._get_key(key, section) for key in keys] + expired):
             key = self._reverse_key(row[0], section)
