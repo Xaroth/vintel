@@ -35,27 +35,33 @@ from PyQt4.QtWebKit import QWebPage
 from vi import amazon_s3, evegate
 from vi import chatparser, dotlan, filewatcher
 from vi import states
-from vi.cache.cache import Cache
+from vi.cache import Cache
+from vi.settings import globalsettings
 from vi.resources import resourcePath
 from vi.soundmanager import SoundManager
 from vi.threads import AvatarFindThread, KOSCheckerThread, MapStatisticsThread
 from vi.ui.systemtray import TrayContextMenu
 
 from vi.eve.api import api
+from vi.eve.jumpbridge import Jumpbridge
 
 # Timer intervals
 MESSAGE_EXPIRY_SECS = 20 * 60
 MAP_UPDATE_INTERVAL_MSECS = 4 * 1000
 CLIPBOARD_CHECK_INTERVAL_MSECS = 1 * 1000
 
+globalsettings.register_settings({
+    "knownPlayerNames": set(),
+    "roomNames": ["TheCitadel", "North Provi Intel", "North Catch Intel"],
+    "regionName": "Providence",
+})
+
 
 class MainWindow(QtGui.QMainWindow):
 
 
     def __init__(self, pathToLogs, trayIcon, backGroundColor):
-
         QtGui.QMainWindow.__init__(self)
-        self.cache = Cache()
 
         if backGroundColor:
             self.setStyleSheet("QWidget { background-color: %s; }" % backGroundColor)
@@ -81,22 +87,13 @@ class MainWindow(QtGui.QMainWindow):
         self.scanIntelForKosRequestsEnabled = True
 
         # Load user's toon names
-        self.knownPlayerNames = self.cache.getFromCache("known_player_names")
-        if self.knownPlayerNames:
-            self.knownPlayerNames = set(self.knownPlayerNames.split(","))
-        else:
-            self.knownPlayerNames = set()
+        self.knownPlayerNames = globalsettings["knownPlayerNames"]
+        if not self.knownPlayerNames:
             diagText = "Vintel scans EVE system logs and remembers your characters as they change systems.\n\nSome features (clipboard KOS checking, alarms, etc.) may not work until your character(s) have been registered. Change systems, with each character you want to monitor, while Vintel is running to remedy this."
             QtGui.QMessageBox.warning(None, "Known Characters not Found", diagText, "Ok")
 
         # Set up user's intel rooms
-        roomnames = self.cache.getFromCache("room_names")
-        if roomnames:
-            roomnames = roomnames.split(",")
-        else:
-            roomnames = (u"TheCitadel", u"North Provi Intel", u"North Catch Intel")
-            self.cache.putIntoCache("room_names", u",".join(roomnames), 60 * 60 * 24 * 365 * 5)
-        self.roomnames = roomnames
+        self.roomnames = globalsettings["roomNames"]
 
         # Disable the sound UI if sound is not available
         if not SoundManager().soundAvailable:
@@ -141,13 +138,8 @@ class MainWindow(QtGui.QMainWindow):
         self.style().drawPrimitive(QStyle.PE_Widget, opt,  painter, self)
 
 
-    def recallCachedSettings(self):
-        try:
-            self.cache.recallAndApplySettings(self, "settings")
-        except Exception as e:
-            logging.error(e)
-            # todo: add a button to delete the cache / DB
-            self.trayIcon.showMessage("Settings error", "Something went wrong loading saved state:\n {0}".format(str(e)), 1)
+    def recallCachedSettings(self):  # TODO
+        pass
 
 
     def wireUpUIConnections(self):
@@ -217,9 +209,7 @@ class MainWindow(QtGui.QMainWindow):
         self.initMapPosition = None
 
         logging.info("Finding map file")
-        regionName = self.cache.getFromCache("region_name")
-        if not regionName:
-            regionName = "Providence"
+        regionName = globalsettings["regionName"]
         svg = None
         try:
             with open(resourcePath("vi/ui/res/mapdata/{0}.svg".format(regionName))) as svgFile:
@@ -243,7 +233,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # Load the jumpbridges
         logging.critical("Load jump bridges")
-        self.setJumpbridges(self.cache.getFromCache("jumpbridge_url"))
+        self.updateJumpbridges()
         self.initMapPosition = None  # We read this after first rendering
         self.systems = self.dotlan.systems
         logging.critical("Creating chat parser")
@@ -261,7 +251,6 @@ class MainWindow(QtGui.QMainWindow):
             self.mapView.connect(self.mapView, Qt.SIGNAL("linkClicked(const QUrl&)"), self.mapLinkClicked)
 
             # Also set up our app menus
-            regionName = self.cache.getFromCache("region_name")
             if not regionName:
                 self.providenceRegionAction.setChecked(True)
             elif regionName.startswith("Providencecatch"):
@@ -304,11 +293,6 @@ class MainWindow(QtGui.QMainWindow):
         """
             Persisting things to the cache before closing the window
         """
-        # Known playernames
-        if self.knownPlayerNames:
-            value = ",".join(self.knownPlayerNames)
-            self.cache.putIntoCache("known_player_names", value, 60 * 60 * 24 * 365)
-
         # Program state to cache (to read it on next startup)
         settings = ((None, "restoreGeometry", str(self.saveGeometry())), (None, "restoreState", str(self.saveState())),
                     ("splitter", "restoreGeometry", str(self.splitter.saveGeometry())),
@@ -327,7 +311,7 @@ class MainWindow(QtGui.QMainWindow):
                     (None, "changeUseSpokenNotifications", self.useSpokenNotificationsAction.isChecked()),
                     (None, "changeKosCheckClipboard", self.kosClipboardActiveAction.isChecked()),
                     (None, "changeAutoScanIntel", self.scanIntelForKosRequestsEnabled))
-        self.cache.putIntoCache("settings", str(settings), 60 * 60 * 24 * 365)
+        #self.cache.putIntoCache("settings", str(settings), 60 * 60 * 24 * 365)
 
         # Stop the threads
         try:
@@ -529,27 +513,28 @@ class MainWindow(QtGui.QMainWindow):
     def showJumbridgeChooser(self):
         url = self.cache.getFromCache("jumpbridge_url")
         chooser = JumpbridgeChooser(self, url)
-        chooser.connect(chooser, Qt.SIGNAL("set_jumpbridge_url"), self.setJumpbridges)
+        chooser.connect(chooser, Qt.SIGNAL("set_jumpbridge_url"), self.setJumpbridgeUrl)
         chooser.show()
 
     def setSoundVolume(self, value):
         SoundManager().setSoundVolume(value)
 
-    def setJumpbridges(self, url):
-        if url is None:
-            url = ""
+    def setJumpbridgeUrl(self, url):
+        if not Jumpbridge.validate(url):
+            text = [
+                "The systemwas unable to load the jumpbridge data.",
+                "",
+                "Please make sure that the url '{}' is valid,".format(url),
+                "and, in case of a dynamic url, that the region Providence returns data",
+            ]
+            QtGui.QMessageBox.warning(None, "Loading jumpbridges failed!", '\n'.join(text), QtGui.QMessageBox.Ok)
+            pass
+        Jumpbridge.set_url(url)
+
+    def updateJumpbridges(self):
         try:
-            data = []
-            if url != "":
-                resp = requests.get(url)
-                for line in resp.iter_lines(decode_unicode=True):
-                    parts = line.strip().split()
-                    if len(parts) == 3:
-                        data.append(parts)
-            else:
-                data = amazon_s3.getJumpbridgeData(self.dotlan.region.lower())
+            data = Jumpbridge.load(self.dotlan.region)
             self.dotlan.setJumpbridges(data)
-            self.cache.putIntoCache("jumpbridge_url", url, 60 * 60 * 24 * 365 * 8)
         except Exception as e:
             QtGui.QMessageBox.warning(None, "Loading jumpbridges failed!", "Error: {0}".format(six.text_type(e)), "OK")
 
@@ -700,6 +685,7 @@ class MainWindow(QtGui.QMainWindow):
             # If players location has changed
             if message.status == states.LOCATION:
                 self.knownPlayerNames.add(message.user)
+                globalsettings['knownPlayerNames'] = self.knownPlayerNames
                 self.setLocation(message.user, message.systems[0])
             elif message.status == states.KOS_STATUS_REQUEST:
                 # Do not accept KOS requests from monitored intel channels
