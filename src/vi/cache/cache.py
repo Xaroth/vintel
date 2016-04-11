@@ -127,13 +127,17 @@ class CacheBase(object):
 
     @property
     def conn(self):
-        if not self._conn:
-            if not self._path and not self.__class__._path:
-                raise CacheNotInitializedException()
-            self._conn = self._get_connection(self._path)
-            if not self.uses_global:
+        if not self._path and not self.__class__._path:
+            raise CacheNotInitializedException()
+        if not self.uses_global:
+            if self._conn == self.__class__._conn:
+                self._conn = self._get_connection(self._path)
                 with self.WRITE_LOCK:
                     self.check_version(self._conn)
+                self.cleanup(self._conn)
+        elif not self._conn:
+                self.__class__._conn = self._conn = self._get_connection()
+                self.cleanup(self._conn)
         return self._conn
 
     @classmethod
@@ -211,8 +215,8 @@ class NewCache(CacheBase):
         query = "SELECT blobdata, intdata, stringdata, expires FROM cache WHERE key = ? {expired}"
         key = self._get_key(key, section)
         now = self.utcnow()
-        expired = [now] if allowExpired else []
-        query = query.format(expired="AND expires <= ?" if allowExpired else "")
+        expired = [now] if not allowExpired else []
+        query = query.format(expired="AND expires >= ?" if not allowExpired else "")
         fields = self.conn.execute(query, [key]+expired).fetchone()
         if fields:
             return self.to_python(fields[0:3])
@@ -222,8 +226,8 @@ class NewCache(CacheBase):
         logging.info("cache.get_many for %d keys", len(keys))
         now = self.utcnow()
         query = "SELECT key, blobdata, intdata, stringdata, expires FROM cache WHERE key IN ({seq}) {expired}"
-        expired = [now] if allowExpired else []
-        query = query.format(seq=', '.join(['?']*len(keys)), expired=" AND expires < ?" if allowExpired else "")
+        expired = [now] if not allowExpired else []
+        query = query.format(seq=', '.join(['?']*len(keys)), expired=" AND expires >= ?" if not allowExpired else "")
         data = {}
         for row in self.conn.execute(query, [self._get_key(key, section) for key in keys] + expired):
             key = self._reverse_key(row[0], section)
