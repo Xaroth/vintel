@@ -14,6 +14,7 @@ except ImportError:
         logging.warning("Unable to load lru_cache, for best performance, run this with python3, or install the functools32 package")
         lru_cache = lambda x: x
 from vi.cache import Cache, DEFAULT_EXPIRES
+from vi.version import VERSION
 
 DEFAULT_CACHE = object()
 
@@ -22,6 +23,11 @@ BASE_URLS = {
     "public-crest": "https://public-crest.eveonline.com/",
     "authed-crest": "https://crest-tq.eveonline.com/",
     "image": "https://image.eveonline.com/",
+}
+
+HEADERS = {
+    "User-Agent": "Vintel/{}".format(VERSION),
+    "Accept": "application/vnd.ccp.eve.Api-v3+json",
 }
 
 cache = Cache(key_prefix='api', default_expires=60*60*6)
@@ -54,7 +60,11 @@ class EveApi(object):
                 return ET.fromstring(cached)
         url = self.urljoin("api", path)
         logging.debug("Making an API request to %s", url)
-        response = requests.get(url, params, **kwargs)
+        headers = HEADERS
+        if 'headers' in kwargs:
+            headers = kwargs['headers']
+            headers.update(HEADERS)
+        response = requests.get(url, params, headers=headers, **kwargs)
         content = response.content
         tree = ET.fromstring(content)
         if cacheResponse:
