@@ -31,11 +31,20 @@ RED_BY_LAST = "Red by last"
 CVA_KOS_URL = "http://kos.cva-eve.org/api/"
 
 
+NPC_CORPS = {}
+NPC_CORPNAMES = []
+
+
 def check(parts):
+    global NPC_CORPS, NPC_CORPNAMES
     data = {}
     checkBylastChars = []
     namesAsIds = {}
     names = [name.strip() for name in parts]
+
+    if not NPC_CORPS:
+        NPC_CORPS = api.npcCorporations()
+        NPC_CORPNAMES = list(NPC_CORPS.values())
 
     try:
         kosData = requests.get(CVA_KOS_URL, params = {'c': 'json', 'type': 'multi', 'q': ','.join(names)}).json()
@@ -50,7 +59,7 @@ def check(parts):
 
         if char["kos"] or char["corp"]["kos"] or char["corp"]["alliance"]["kos"]:
             data[charname] = {"kos": KOS}
-        elif corpname not in evegate.NPC_CORPS:
+        elif corpname not in NPC_CORPNAMES:
             data[charname] = {"kos": NOT_KOS}
         else:
             if char not in checkBylastChars:
@@ -84,7 +93,7 @@ def check(parts):
         for name, nameData in corpCheckData.items():
             nameData["corpnames"] = [corpIdName[id] for id in nameData["corpids"]]
             for corpname in nameData["corpnames"]:
-                if corpname not in evegate.NPC_CORPS:
+                if corpname not in NPC_CORPNAMES:
                     nameData["need_check"] = True
                     nameData["corp_to_check"] = corpname
                     break
