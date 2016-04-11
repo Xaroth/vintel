@@ -241,7 +241,7 @@ class NewCache(CacheBase):
         parameters = (self._get_key(key, section), expires) + self.from_python(value)
         with self.WRITE_LOCK:
             query = "DELETE FROM cache WHERE key = ?"
-            cursor.execute(query, (key,))
+            cursor.execute(query, (self._get_key(key, section),))
             query = "INSERT INTO cache (key, expires, blobdata, intdata, stringdata) VALUES (?, ?, ?, ?, ?)"
             cursor.execute(query, parameters)
             self.conn.commit()
