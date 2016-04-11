@@ -201,25 +201,27 @@ class NewCache(CacheBase):
         else:
             return to_blob(pickle.dumps(obj, pickle.HIGHEST_PROTOCOL)), None, None
 
-    def get(self, key, default=NO_DEFAULT, section=None):
+    def get(self, key, default=NO_DEFAULT, section=None, allowExpired=False):
         logging.info("cache.get: %s", self._get_key(key, section))
-        query = "SELECT blobdata, intdata, stringdata, expires FROM cache WHERE key = ?"
+        query = "SELECT blobdata, intdata, stringdata, expires FROM cache WHERE key = ? {expired}"
         key = self._get_key(key, section)
-        fields = self.conn.execute(query, (key,)).fetchone()
-        if fields and fields[3] >= self.utcnow():
+        now = self.utcnow()
+        expired = [now] if allowExpired else []
+        query = query.format(expired="AND expired <= ?" if allowExpired else "")
+        fields = self.conn.execute(query, [key]+expired).fetchone()
+        if fields:
             return self.to_python(fields[0:3])
         return None if default is NO_DEFAULT else default
 
-    def get_many(self, keys, section=None):
+    def get_many(self, keys, section=None, allowExpired=False):
         logging.info("cache.get_many for %d keys", len(keys))
-        query = "SELECT key, blobdata, intdata, stringdata, expires FROM cache WHERE key IN ({seq})"
-        query = query.format(seq=', '.join(['?']*len(keys)))
-        data = {}
         now = self.utcnow()
-        for row in self.conn.execute(query, [self._get_key(key, section) for key in keys]):
+        query = "SELECT key, blobdata, intdata, stringdata, expires FROM cache WHERE key IN ({seq}) {expired}"
+        expired = [now] if allowExpired else []
+        query = query.format(seq=', '.join(['?']*len(keys)), expired=" AND expired < ?" if allowExpired else "")
+        data = {}
+        for row in self.conn.execute(query, [self._get_key(key, section) for key in keys] + expired):
             key = self._reverse_key(row[0], section)
-            if row[4] < now:
-                continue
             fields = row[1:4]
             data[key] = self.to_python(fields)
         logging.debug("cache.get_many returning %d", len(data))
