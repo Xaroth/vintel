@@ -22,6 +22,7 @@ BASE_URLS = {
     "api": "https://api.eveonline.com/",
     "public-crest": "https://public-crest.eveonline.com/",
     "authed-crest": "https://crest-tq.eveonline.com/",
+    "test-crest": "https://api-sisi.testeveonline.com/",
     "image": "https://image.eveonline.com/",
 }
 
@@ -72,6 +73,24 @@ class EveApi(object):
                 expires = self.extractApiCacheTime(tree)
             cache.set(key, content, section=section, expires=expires or DEFAULT_EXPIRES)
         return tree
+
+    def crestRequest(self, path, cacheResponse = False, crest = 'public', **kwargs):
+        if cacheResponse:
+            key, section, expires = cacheResponse
+            cached = cache.get(key, section=section)
+            if cached:
+                return cached
+        url = self.urljoin('{}-crest'.format(crest), path)
+        logging.debug("Making a CREST request to %s", url)
+        headers = HEADERS
+        if 'headers' in kwargs:
+            headers = kwargs['headers']
+            headers.update(HEADERS)
+        response = requests.get(url, headers=headers, **kwargs)
+        data = response.json()
+        if cacheResponse:
+            cache.set(key, conten, section=section, expires=expires or DEFAULT_EXPIRES)
+        return data
 
     def eveTime(self):
         return datetime.utcnow()
@@ -334,5 +353,14 @@ class EveApi(object):
         jumps = self.systemJumps()
         kills = self.systemKills()
         return {key: dict(value, jumps=jumps.get(key)) for key, value in kills.items()}
+
+    def npcCorporations(self):  # TODO: Migrate to public crest once it is released
+        cached = cache.get('npcCorporations')
+        if cached:
+            return cached
+        response = self.crestRequest('corporations/npccorps/', crest='test')
+        data = {item['id']: item['name'] for item in response['items']}
+        cache.set('npcCorporations', data, expires=60*60*24)
+        return data
 
 api = EveApi()
