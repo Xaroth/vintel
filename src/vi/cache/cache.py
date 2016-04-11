@@ -176,7 +176,10 @@ class NewCache(CacheBase):
             self.WRITE_LOCK = threading.Lock()
 
     def _get_key(self, key, section=None):
-        return ':'.join([str(x) for x in [self._key_prefix, section, key] if x is not None])
+        base = ""
+        if self._key_prefix:
+            base = "{}|".format(self._key_prefix)
+        return "{}{}".format(base, ':'.join([str(x) for x in [section, key] if x is not None]))
 
     def _reverse_key(self, key, section=None):
         return key[len(self._get_key('', section=section)):]
