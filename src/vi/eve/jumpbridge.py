@@ -43,13 +43,13 @@ class Jumpbridge(object):
     def load(cls, region):
         if cls.url is None:
             cls.url = settings['url']
-        info = cls.get_region_info(region)
-        cached = cache.get(cls.url, section=info['id'])
+        region_info = cls.get_region_info(region)
+        cached = cache.get(cls.url, section=region_info['id'])
         if cached:
             return cached
         data = []
         try:
-            url = url.format(**region_info)
+            url = cls.url.format(**region_info)
             response = requests.get(url, headers=HEADERS)
             for line in response.iter_lines(decode_unicode=True):
                 if not line:
@@ -62,7 +62,7 @@ class Jumpbridge(object):
                 fromsys, connection, tosys = parts
                 if fromsys.lower() in cls.systemIDs and tosys.lower() in cls.systemIDs:
                     data.append((fromsys, connection, tosys))
-            cache.set(cls.url, data, section=info['id'])
+            cache.set(cls.url, data, section=region_info['id'])
         except:
             pass
         return data
