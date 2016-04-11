@@ -128,6 +128,8 @@ class CacheBase(object):
     @property
     def conn(self):
         if not self._conn:
+            if not self._path and not self.__class__._path:
+                raise CacheNotInitializedException()
             self._conn = self._get_connection(self._path)
             if not self.uses_global:
                 with self.WRITE_LOCK:
