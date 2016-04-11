@@ -17,6 +17,10 @@ class Settings(object):
     def initialize(cls, directory):
         cls._cache = Cache(default_expires=INT_MAX, override_path=os.path.join(directory, 'settings.sqlite3'))
 
+    @classmethod
+    def close(cls):
+        cls._cache.close()
+
     def register_setting(self, key, default_value):
         self._defaults[key] = default_value
 
