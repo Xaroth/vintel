@@ -29,7 +29,7 @@ import logging
 
 from bs4 import BeautifulSoup
 from vi import states
-from vi.cache.cache import Cache
+from vi.cache import Cache
 
 from . import evegate
 
@@ -49,6 +49,7 @@ class Map(object):
     """
 
     DOTLAN_BASIC_URL = u"http://evemaps.dotlan.net/svg/{0}.svg"
+    cache = Cache(default_expires=(60*60*24), key_prefix='map')
 
     @property
     def svg(self):
@@ -67,21 +68,20 @@ class Map(object):
 
     def __init__(self, region, svgFile=None):
         self.region = region
-        cache = Cache()
         self.outdatedCacheError = None
 
         # Get map from dotlan if not in the cache
         if not svgFile:
-            svg = cache.getFromCache("map_" + self.region)
+            svg = self.cache.get(self.region.lower(), section='svg')
         else:
             svg = svgFile
         if not svg:
             try:
                 svg = self._getSvgFromDotlan(self.region)
-                cache.putIntoCache("map_" + self.region, svg, evegate.secondsTillDowntime() + 60 * 60)
+                self.cache.set(self.region.lower(), svg, section='svg')
             except Exception as e:
                 self.outdatedCacheError = e
-                svg = cache.getFromCache("map_" + self.region, True)
+                svg = self.cache.get(self.region.lower(), section='svg', allowExpired=True)
                 if not svg:
                     t = "No Map in cache, nothing from dotlan. Must give up " \
                         "because this happened:\n{0} {1}\n\nThis could be a " \
