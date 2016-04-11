@@ -363,4 +363,22 @@ class EveApi(object):
         cache.set('npcCorporations', data, expires=60*60*24)
         return data
 
+    def solarsystems(self):
+        cached = cache.get('solarsystems')
+        if cached:
+            return cached
+        response = self.crestRequest('solarsystems/', crest='public')
+        data = {item['id']: item['name'] for item in response['items']}
+        cache.set('solarsystems', data, expires=60*60*24)
+        return data
+
+    def regions(self):
+        cached = cache.get('regions')
+        if cached:
+            return cached
+        response = self.crestRequest('regions/', crest='public')
+        data = {item['id']: item['name'] for item in response['items']}
+        cache.set('regions', data, expires=60*60*24)
+        return data
+
 api = EveApi()
