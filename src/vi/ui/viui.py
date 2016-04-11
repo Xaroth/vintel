@@ -87,7 +87,7 @@ class MainWindow(QtGui.QMainWindow):
         self.scanIntelForKosRequestsEnabled = True
 
         # Load user's toon names
-        self.knownPlayerNames = globalsettings["knownPlayerNames"]
+        self.knownPlayerNames = set(list(globalsettings["knownPlayerNames"]))
         if not self.knownPlayerNames:
             diagText = "Vintel scans EVE system logs and remembers your characters as they change systems.\n\nSome features (clipboard KOS checking, alarms, etc.) may not work until your character(s) have been registered. Change systems, with each character you want to monitor, while Vintel is running to remedy this."
             QtGui.QMessageBox.warning(None, "Known Characters not Found", diagText, "Ok")
