@@ -338,9 +338,9 @@ class EveApi(object):
                     data = item.attrib
                     systemID = int(data['solarSystemID'])
                     ret[systemID] = {
-                        'ship': int(data['shipKills']),
-                        'faction': int(data['factionKills']),
-                        'pod': int(data['podKills']),
+                        'shipKills': int(data['shipKills']),
+                        'factionKills': int(data['factionKills']),
+                        'podKills': int(data['podKills']),
                     }
                 except ValueError:
                     continue
@@ -353,7 +353,7 @@ class EveApi(object):
     def systemInformation(self):
         jumps = self.systemJumps()
         kills = self.systemKills()
-        return {key: dict(value, jumps=jumps.get(key)) for key, value in kills.items()}
+        return {key: dict(value, shipJumps=jumps.get(key)) for key, value in kills.items()}
 
     def npcCorporations(self):  # TODO: Migrate to public crest once it is released
         cached = self.cache.get('npcCorporations')

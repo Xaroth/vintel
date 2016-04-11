@@ -450,7 +450,7 @@ class System(object):
         if statistics is None:
             text = "stats n/a"
         else:
-            text = "j-{jumps} f-{factionkills} s-{shipkills} p-{podkills}".format(**statistics)
+            text = "j-{shipJumps} f-{factionKills} s-{shipKills} p-{podKills}".format(**statistics)
         svgtext = self.mapSoup.select("#stats_" + str(self.systemId))[0]
         svgtext.string = text
 

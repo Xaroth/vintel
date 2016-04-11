@@ -19,15 +19,14 @@
 
 import time
 import logging
+import six
 
 from six.moves import queue
 from PyQt4 import QtCore
 from PyQt4.QtCore import QThread
 from PyQt4.QtCore import SIGNAL
-from vi import evegate
 from vi import koschecker
 from vi.eve.api import EveApi
-from vi.cache.cache import Cache
 from vi.resources import resourcePath
 
 STATISTICS_UPDATE_INTERVAL_MSECS = 1 * 60 * 1000
@@ -130,6 +129,7 @@ class MapStatisticsThread(QThread):
         self.queue.put(1)
 
     def run(self):
+        api = EveApi()
         self.refreshTimer = QtCore.QTimer()
         self.connect(self.refreshTimer, QtCore.SIGNAL("timeout()"), self.requestStatistics)
         while True:
@@ -138,12 +138,12 @@ class MapStatisticsThread(QThread):
             self.refreshTimer.stop()
             logging.debug("MapStatisticsThread requesting statistics")
             try:
-                statistics = evegate.getSystemStatistics()
+                statistics = api.systemInformation()
                 #time.sleep(2)  # sleeping to prevent a "need 2 arguments"-error
                 requestData = {"result": "ok", "statistics": statistics}
             except Exception as e:
                 logging.error("Error in MapStatisticsThread: %s", e)
-                requestData = {"result": "error", "text": unicode(e)}
+                requestData = {"result": "error", "text": six.text_type(e)}
             self.lastStatisticsUpdate = time.time()
             self.refreshTimer.start(self.pollRate)
             self.emit(SIGNAL("statistic_data_update"), requestData)
